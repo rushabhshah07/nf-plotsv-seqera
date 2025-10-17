@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/ncsu-decifr/nf-plotsv-seqera/main/nextflow_schema.json",
+  "title": "nf-plotsv parameters",
+  "description": "Compare genomes using minimap2 → SyRi → plotsr.",
+  "type": "object",
+
+  "$defs": {
+    "input_output_options": {
+      "title": "Input / Output",
+      "type": "object",
+      "fa_icon": "fas fa-terminal",
+      "description": "Where to read inputs and write results.",
+      "required": ["samplesheet"],
+      "properties": {
+        "samplesheet": {
+          "type": "string",
+          "format": "file-path",
+          "mimetype": "text/csv",
+          "pattern": "^\\S+\\.csv$",
+          "description": "CSV with columns: name,fasta.",
+          "help_text": "Each row lists a genome: `name,fasta`. Paths may be local or remote URIs resolvable by Nextflow (e.g. s3://...)."
+        },
+        "out": {
+          "type": "string",
+          "format": "directory-path",
+          "description": "Directory/URI for results.",
+          "default": "./",
+          "fa_icon": "fas fa-folder-open",
+          "help_text": "Use an absolute path or cloud URI (e.g. s3://...)."
+        }
+      }
+    },
+
+    "run_mode_options": {
+      "title": "Run mode & filtering",
+      "type": "object",
+      "fa_icon": "fas fa-sliders-h",
+      "properties": {
+        "pairwise": {
+          "type": "boolean",
+          "description": "Pairwise chain of comparisons down the samplesheet (ignores reference).",
+          "default": true
+        },
+        "reorient": {
+          "type": "boolean",
+          "description": "Reorient sequences to the same strand (requires containerised run; not supported with -profile conda).",
+          "default": false
+        },
+        "subset_pattern": {
+          "type": "string",
+          "description": "Regex to subset chromosomes/contigs.",
+          "default": "Chr[1-5]"
+        }
+      }
+    },
+
+    "reference_options": {
+      "title": "Reference (used when not in pairwise mode)",
+      "type": "object",
+      "fa_icon": "fas fa-dna",
+      "description": "Only used when --pairwise is false.",
+      "properties": {
+        "reference": {
+          "type": "string",
+          "description": "Reference label.",
+          "default": "Col-CEN_v1.2",
+          "fa_icon": "fas fa-book"
+        },
+        "ref_genome": {
+          "type": "string",
+          "format": "file-path",
+          "mimetype": "text/plain",
+          "pattern": "^\\S+\\.fn?a(sta)?(\\.gz)?$",
+          "description": "Reference FASTA file.",
+          "default": "$projectDir/assets/Col-CEN_v1.2.fasta",
+          "fa_icon": "far fa-file-code",
+          "help_text": "When not using pairwise mode, the reference FASTA must contain the same subset of chromosomes as selected by --subset_pattern."
+        }
+      }
+    },
+
+    "plotsr_options": {
+      "title": "plotsr",
+      "type": "object",
+      "fa_icon": "fas fa-project-diagram",
+      "description": "Control plotsr behaviour and appearance.",
+      "properties": {
+        "plotsr_conf": {
+          "type": "string",
+          "format": "file-path",
+          "description": "plotsr configuration file.",
+          "default": "$projectDir/assets/plotsr_config.conf",
+          "fa_icon": "fas fa-cog"
+        },
+        "plotsr_args": {
+          "type": "string",
+          "description": "Extra CLI flags passed to plotsr.",
+          "default": "-S 0.7 -W 5 -H 5 -f 12"
+        },
+        "plotsr_tracks": {
+          "type": "string",
+          "format": "file-path",
+          "description": "Optional tracks file for plotsr (use absolute path or full URI).",
+          "default": "",
+          "fa_icon": "fas fa-stream",
+          "help_text": "Must be an absolute path (e.g. $PWD/tracks.txt) or a fully qualified URI."
+        },
+        "plotsr_colors": {
+          "type": "array",
+          "description": "Optional list of hex colors for plotsr.",
+          "items": {
+            "type": "string",
+            "pattern": "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+          },
+          "fa_icon": "fas fa-palette",
+          "help_text": "If omitted, plotsr defaults are used."
+        }
+      }
+    }
+  },
+
+  "allOf": [
+    { "$ref": "#/$defs/input_output_options" },
+    { "$ref": "#/$defs/run_mode_options" },
+    { "$ref": "#/$defs/reference_options" },
+    { "$ref": "#/$defs/plotsr_options" },
+
+    {
+      "if": {
+        "properties": { "pairwise": { "const": false } },
+        "required": ["pairwise"]
+      },
+      "then": {
+        "required": ["reference", "ref_genome"]
+      }
+    }
+  ]
+}
