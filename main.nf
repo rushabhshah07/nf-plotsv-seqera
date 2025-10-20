@@ -191,6 +191,7 @@ include { PLOTSR_PAIRWISE_OLD }    from './modules/plotsr/main'
 // -----------------------------
 // Helpers: make optional params safe
 // -----------------------------
+/** Always produce a List (possibly empty) of colors. */
 def normalize_palette(value) {
     if (value == null) return []
     if (value instanceof List) return value
@@ -198,7 +199,10 @@ def normalize_palette(value) {
     if (!s) return []
     return s.split(/\s+|,\s*/).findAll { it }
 }
-def normalize_tracks(value) { value ? value.toString() : '' }
+/** Never return null for tracks. */
+def normalize_tracks(value) {
+    return value ? value.toString() : ''
+}
 
 // -----------------------------
 // Banner
@@ -322,26 +326,25 @@ workflow PLOTSV {
       .collect()
       .set { ch_names }
 
-    // Pass non-channel constants with `val(...)`
+    // Pass constants directly (no val())
     PLOTSR_PAIRWISE_OLD(
       plotsr_in,
       ch_names,
       ch_prepared_files,
-      val(params.plotsr_conf),
-      val(params.plotsr_args),
-      val(tracks),
-      val(palette)
+      params.plotsr_conf,
+      params.plotsr_args,
+      tracks,
+      palette
     )
   }
   else {
     ALIGN_GENOMES(PREPARE_GENOMES.out, tuple(params.reference, params.ref_genome))
     SYRI(ALIGN_GENOMES.out)
-    // These are constants too; safe to pass as values
     PLOTSR(
       SYRI.out.syri_out,
-      val(params.reference),
-      val(params.plotsr_conf),
-      val(params.plotsr_args)
+      params.reference,
+      params.plotsr_conf,
+      params.plotsr_args
     )
   }
 }
