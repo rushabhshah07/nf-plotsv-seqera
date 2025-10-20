@@ -157,7 +157,7 @@ workflow PLOTSV {
       .collect()
       .set { ch_names }
 
-    PLOTSR_PAIRWISE_OLD(plotsr_in, ch_names, ch_prepared_files, params.plotsr_conf, params.plotsr_args, tracks, palette)
+    PLOTSR_PAIRWISE_OLD(plotsr_in, ch_names, ch_prepared_files, params.plotsr_conf, params.plotsr_args, params.plotsr_tracks, params.plotsr_colors)
     
   } else {
     ALIGN_GENOMES(PREPARE_GENOMES.out, tuple(params.reference, params.ref_genome))
