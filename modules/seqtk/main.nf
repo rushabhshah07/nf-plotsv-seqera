@@ -115,23 +115,22 @@ process SEQTK_SUBSET {
     tuple val(meta), path("*_subset.fa"), emit: subset
 
     script:
-    // Groovy value injected into the script; used by awk via -v pat="..."
+    // inject the user’s regex once as a Groovy var
     def pattern = params.subset_pattern
     """
     set -euo pipefail
 
-    fasta="${genome}"
+    # Decompress or link the input FASTA
+    if [[ "${genome}" =~ \\.gz$ ]]; then
+        gzip -dc "${genome}" > ${meta}_genome.fa
+    else
+        ln -sf "${genome}" ${meta}_genome.fa
+    fi
 
-    # Decompress or link
-    case "\$fasta" in
-      *.gz)  gzip -dc "\$fasta" > ${meta}_genome.fa ;;
-      *)     ln -sf "\$fasta"   ${meta}_genome.fa ;;
-    esac
-
-    # Build list from HEADER lines only; strip leading '>'
+    # Build list of sequence names from HEADER lines only (strip leading '>')
     awk -v pat="${pattern}" '/^>/{h=substr(\$0,2); if (h ~ pat) print h}' ${meta}_genome.fa > names.lst
 
-    # Fallback if nothing matched: use ALL headers
+    # Fallback: if nothing matched, use ALL headers to avoid empty list -> seqtk exit 1
     if [[ ! -s names.lst ]]; then
       echo "[WARN] No FASTA headers matched pattern: '${pattern}'. Using ALL headers." >&2
       awk '/^>/{print substr(\$0,2)}' ${meta}_genome.fa > names.lst
