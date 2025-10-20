@@ -13,6 +13,18 @@ include { SYRI_PAIRWISE } from './modules/syri/main'
 include { PLOTSR_PAIRWISE } from './modules/plotsr/main' 
 include { PLOTSR_PAIRWISE_OLD } from './modules/plotsr/main' 
 
+def normalize_palette(value) {
+    if (value == null) return []
+    if (value instanceof List) return value
+    def s = value.toString().trim()
+    if (!s) return []
+    return s.split(/\s+|,\s*/).findAll { it }
+}
+
+/** Never return null for tracks */
+def normalize_tracks(value) {
+    return value ? value.toString() : ''
+}
 
 /*
 Samplesheet: 
