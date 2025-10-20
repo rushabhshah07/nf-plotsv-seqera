@@ -102,10 +102,10 @@ process SEQTK_SUBSET {
     tag "$meta"
     label 'process_low'
     publishDir(
-        path: { "${params.out}/${task.process}".replace(':','/').toLowerCase() },
-        mode: 'copy',
-        overwrite: true,
-        saveAs: { fn -> fn.substring(fn.lastIndexOf('/')+1) }
+      path: { "${params.out}/${task.process}".replace(':','/').toLowerCase() },
+      mode: 'copy',
+      overwrite: true,
+      saveAs: { fn -> fn.substring(fn.lastIndexOf('/')+1) }
     )
 
     input:
@@ -115,7 +115,7 @@ process SEQTK_SUBSET {
     tuple val(meta), path("*_subset.fa"), emit: subset
 
     script:
-    // capture Groovy value once; we will inject it into the script via ${pattern}
+    // Groovy value injected into the script; used by awk via -v pat="..."
     def pattern = params.subset_pattern
     """
     set -euo pipefail
@@ -123,16 +123,15 @@ process SEQTK_SUBSET {
     fasta="${genome}"
 
     # Decompress or link
-    case "${fasta}" in
-      *.gz)  gzip -dc "${fasta}" > ${meta}_genome.fa ;;
-      *)     ln -sf "${fasta}"   ${meta}_genome.fa ;;
+    case "\$fasta" in
+      *.gz)  gzip -dc "\$fasta" > ${meta}_genome.fa ;;
+      *)     ln -sf "\$fasta"   ${meta}_genome.fa ;;
     esac
 
-    # Build list of sequence names from HEADER lines only; strip leading '>'
-    # Use the GROOVY-injected regex (${pattern}) safely via -v pat=...
+    # Build list from HEADER lines only; strip leading '>'
     awk -v pat="${pattern}" '/^>/{h=substr(\$0,2); if (h ~ pat) print h}' ${meta}_genome.fa > names.lst
 
-    # Fallback: if no headers matched, use ALL headers so we never pass an empty list to seqtk
+    # Fallback if nothing matched: use ALL headers
     if [[ ! -s names.lst ]]; then
       echo "[WARN] No FASTA headers matched pattern: '${pattern}'. Using ALL headers." >&2
       awk '/^>/{print substr(\$0,2)}' ${meta}_genome.fa > names.lst
