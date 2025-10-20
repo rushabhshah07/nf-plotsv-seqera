@@ -1,0 +1,13 @@
+# Nextflow / runtime caches (never commit these)
+.singularity-cache/
+.sif
+.conda-cache/
+.nextflow/
+work/
+work-*/
+.NXF_*
+# local outputs (adjust to your layout)
+workflow_outputs/
+results/
+*.html
+*.pdf
