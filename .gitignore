@@ -35,3 +35,15 @@ results/
 *.img
 *.html
 *.pdf
+.singularity-cache/
+.conda-cache/
+.nextflow/
+work/
+work-*/
+.NXF_*
+workflow_outputs/
+results/
+*.sif
+*.img
+*.html
+*.pdf
