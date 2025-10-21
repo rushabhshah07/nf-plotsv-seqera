@@ -170,11 +170,13 @@
 
 // modules/plotsr/main.nf
 
+// modules/plotsr/main.nf
+
 process PLOTSR {
     tag "$meta"
     label 'process_low'
     publishDir(
-      path: { "${params.out}/${task.process}".replace(':','/').toLowerCase() }, 
+      path: { "${params.out}/${task.process}".replace(':','/').toLowerCase() },
       mode: 'copy',
       overwrite: true,
       saveAs: { fn -> fn.substring(fn.lastIndexOf('/')+1) }
@@ -184,7 +186,7 @@ process PLOTSR {
         tuple val(meta), path(syri_out)
         val reference
         path plotsr_conf
-        val extra_args        // <-- fix: this is a value (string), not a path
+        val extra_args        // value, not path
 
     output:
         tuple val(meta), path("*plotsr.pdf"), emit: figure
@@ -224,10 +226,10 @@ process PLOTSR_PAIRWISE {
         path("*.pdf"), emit: figure
 
     script:
-    // Build tracks flag
+    // tracks flag
     def plotsr_tracks = (tracks == null || tracks.toString().trim().isEmpty()) ? '' : "--tracks ${tracks}"
 
-    // Build color list from palette (List<String> or string)
+    // Color list from palette (List<String> or string)
     List<String> paletteItems
     if (palette instanceof List) {
         paletteItems = (palette as List).collect { it?.toString()?.trim() }.findAll { it }
@@ -239,7 +241,7 @@ process PLOTSR_PAIRWISE {
     }
     if (paletteItems.isEmpty()) paletteItems = ['#8F7C00']
 
-    // Prepare names/genomes text columns (strip bracket/comma artifacts defensively)
+    // names/genomes cleaned
     def names_list   = names.collect   { it.toString().replaceAll(/[\\[\\],]/,'').trim() }
     def genomes_list = genomes.collect { it.toString().replaceAll(/[\\[\\],]/,'').trim() }
 
@@ -265,7 +267,7 @@ process PLOTSR_PAIRWISE_OLD {
     tag "BIGPLOT"
     label 'process_low'
     publishDir(
-      path: { "${params.out}/${task.process}".replace(':','/').toLowerCase() }, 
+      path: { "${params.out}/${task.process}".replace(':','/').toLowerCase() },
       mode: 'copy',
       overwrite: true,
       saveAs: { fn -> fn.substring(fn.lastIndexOf('/')+1) }
@@ -298,7 +300,6 @@ process PLOTSR_PAIRWISE_OLD {
         paletteItems = []
     }
     if (paletteItems.isEmpty()) paletteItems = ['#8F7C00']
-    // Each item quoted so '#' never starts a bash comment
     def palette_bash = paletteItems.collect { "'${it}'" }.join(' ')
 
     """
@@ -309,20 +310,18 @@ process PLOTSR_PAIRWISE_OLD {
     names_array=( ${names} )
     echo \$names_array > names.txt
     sed -i 's/\\[//g; s/\\]//g; s/,//g' names.txt
-    awk 'NF' names.txt > names.col
+    tr -s '[:space:]' '\\n' < names.txt | sed '/^\\s*\$/d' > names.col
     len_names=\$(wc -l < names.col)
 
     genomes_array=( ${genomes} )
     echo \$genomes_array > genomes.txt
     sed -i 's/\\[//g; s/\\]//g; s/,//g' genomes.txt
-    awk 'NF' genomes.txt > genomes.col
+    tr -s '[:space:]' '\\n' < genomes.txt | sed '/^\\s*\$/d' > genomes.col
     len_genomes=\$(wc -l < genomes.col)
 
     # ---- COLORS (robust) ----
-    # Nextflow-prepared, quoted items
     color_array=( ${palette_bash} )
     len_colors=\${#color_array[@]}
-
     if [ "\$len_colors" -eq 0 ]; then
       color_array=( '#8F7C00' )
       len_colors=1
