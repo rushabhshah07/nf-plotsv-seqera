@@ -169,6 +169,189 @@
 // workflow { PLOTSV() }
 
 
+// // main.nf
+// nextflow.enable.dsl = 2
+
+// // -----------------------------
+// // Module includes
+// // -----------------------------
+// include { SEQTK_SUBSET as SUBSET } from './modules/seqtk/main'
+// //include { SEQKIT_GET_LENGTH }    from './modules/seqkit/main'
+// include { ALIGN_GENOMES }          from './modules/align/main'
+// include { FIXCHR }                 from './modules/fixchr/main'
+// include { SYRI }                   from './modules/syri/main'
+// include { PLOTSR }                 from './modules/plotsr/main'
+
+// // Pairwise modules
+// include { ALIGN_PAIRWISE }         from './modules/align/main'
+// include { SYRI_PAIRWISE }          from './modules/syri/main'
+// include { PLOTSR_PAIRWISE }        from './modules/plotsr/main'
+// include { PLOTSR_PAIRWISE_OLD }    from './modules/plotsr/main'
+
+// // -----------------------------
+// // Helpers: make optional params safe
+// // -----------------------------
+// /** Always produce a List (possibly empty) of colors. */
+// def normalize_palette(value) {
+//     if (value == null) return []
+//     if (value instanceof List) return value
+//     def s = value.toString().trim()
+//     if (!s) return []
+//     return s.split(/\s+|,\s*/).findAll { it }
+// }
+// /** Never return null for tracks. */
+// def normalize_tracks(value) {
+//     return value ? value.toString() : ''
+// }
+
+// // -----------------------------
+// // Banner
+// // -----------------------------
+// log.info """\
+// =======================================================================================================================
+// =======================================================================================================================
+//                                                     nf-plotsv
+//                                                     ---------
+//                        Plot structural variation across genomes using the 'Schneeberger tools'
+// -----------------------------------------------------------------------------------------------------------------------
+// Niklas Schandry                                  niklas@bio.lmu.de                          github.com/nschan/nf-plotsv
+// -----------------------------------------------------------------------------------------------------------------------
+//   Results directory  : ${params.out}
+
+//   Parameters:
+//      samplesheet     : ${params.samplesheet}
+//      reference       : ${params.reference}
+//      ref_genome      : ${params.ref_genome}
+//      reorient        : ${params.reorient}
+//      pairwise        : ${params.pairwise}
+//      subset_pattern  : ${params.subset_pattern}
+//      plotsr config   : ${params.plotsr_conf}
+//      plotsr args     : ${params.plotsr_args}
+//      plotsr tracks   : ${params.plotsr_tracks}
+// =======================================================================================================================
+// =======================================================================================================================
+// """.stripIndent(false)
+
+
+// // -----------------------------
+// // PREPARE GENOMES
+// // -----------------------------
+// workflow PREPARE_GENOMES {
+//   take:
+//     input
+
+//   main:
+//     if ( params.reorient ) {
+//       input
+//         | SUBSET
+//         | branch { row ->
+//             REF:      row[0] == params.reference
+//             ASSEMBLY: row[0] != params.reference
+//         }
+//         | set { ch_branched }
+
+//       ALIGN_GENOMES(ch_branched.ASSEMBLY, tuple(params.reference, params.ref_genome))
+//         | FIXCHR
+//         | map { it -> [ name: it[0], path: it[1] ] }
+//         | set { fixed }
+
+//       ch_branched.REF
+//         .concat(fixed)
+//         .set { fixed }
+//     }
+//     else {
+//       input
+//         | SUBSET
+//         | map { it -> [ name: it[0], path: it[1] ] }
+//         | set { fixed }
+//     }
+
+//   emit:
+//     fixed
+// }
+
+
+// // -----------------------------
+// // Main workflow
+// // -----------------------------
+// workflow PLOTSV {
+
+//   // Read samplesheet (CSV with header: name,fasta)
+//   ch_input = Channel.fromPath(params.samplesheet) | splitCsv(header: true)
+
+//   // Preserve order of names
+//   ch_input
+//     .map { it -> [ name: it.name ] }
+//     .set { ch_order }
+
+//   PREPARE_GENOMES(ch_input)
+
+//   // ---- Normalize optional params so they are NEVER null ----
+//   def palette = normalize_palette(params.plotsr_colors)
+//   def tracks  = normalize_tracks(params.plotsr_tracks)
+//   // ----------------------------------------------------------
+
+//   if ( params.pairwise ) {
+
+//     ch_order
+//       .cross(PREPARE_GENOMES.out)
+//       .map { it -> it[1] }
+//       .collate(2, 1, false)
+//       .set { ch_chunked }
+
+//     ch_chunked
+//       .map { it -> [ name_A: it[0].name, genome_A: it[0].path,
+//                      name_B: it[1].name, genome_B: it[1].path ] }
+//       .set { ch_chunked }
+
+//     ch_chunked \
+//       | ALIGN_PAIRWISE \
+//       | SYRI_PAIRWISE
+
+//     SYRI_PAIRWISE.out.syri_out
+//       .map { it -> it[2] }
+//       .collect()
+//       .set { plotsr_in }
+
+//     ch_order
+//       .cross(PREPARE_GENOMES.out)
+//       .map { it -> it[1] }
+//       .map { it -> it.path }
+//       .collect()
+//       .set { ch_prepared_files }
+
+//     ch_order
+//       .map { it -> it.name }
+//       .flatten()
+//       .collect()
+//       .set { ch_names }
+
+//     // Pass constants directly (no val())
+//     PLOTSR_PAIRWISE_OLD(
+//       plotsr_in,
+//       ch_names,
+//       ch_prepared_files,
+//       params.plotsr_conf,
+//       params.plotsr_args,
+//       tracks,
+//       palette
+//     )
+//   }
+//   else {
+//     ALIGN_GENOMES(PREPARE_GENOMES.out, tuple(params.reference, params.ref_genome))
+//     SYRI(ALIGN_GENOMES.out)
+//     PLOTSR(
+//       SYRI.out.syri_out,
+//       params.reference,
+//       params.plotsr_conf,
+//       params.plotsr_args
+//     )
+//   }
+// }
+
+// // Entry point
+// workflow { PLOTSV() }
+
 // main.nf
 nextflow.enable.dsl = 2
 
@@ -194,14 +377,16 @@ include { PLOTSR_PAIRWISE_OLD }    from './modules/plotsr/main'
 /** Always produce a List (possibly empty) of colors. */
 def normalize_palette(value) {
     if (value == null) return []
-    if (value instanceof List) return value
+    if (value instanceof List) return value.findAll { it?.toString()?.trim() }
     def s = value.toString().trim()
     if (!s) return []
-    return s.split(/\s+|,\s*/).findAll { it }
+    // split on commas or whitespace; strip brackets if user pasted "[#aaa,#bbb]"
+    s = s.replace('[',' ').replace(']',' ')
+    return s.split(/\s+|,\s*/).collect { it.trim() }.findAll { it }
 }
 /** Never return null for tracks. */
 def normalize_tracks(value) {
-    return value ? value.toString() : ''
+    return value ? value.toString().trim() : ''
 }
 
 // -----------------------------
@@ -326,7 +511,7 @@ workflow PLOTSV {
       .collect()
       .set { ch_names }
 
-    // Pass constants directly (no val())
+    // Pass constants directly
     PLOTSR_PAIRWISE_OLD(
       plotsr_in,
       ch_names,

@@ -1,3 +1,175 @@
+// process PLOTSR {
+//     tag "$meta"
+//     label 'process_low'
+//     publishDir(
+//       path: { "${params.out}/${task.process}".replace(':','/').toLowerCase() }, 
+//       mode: 'copy',
+//       overwrite: true,
+//       saveAs: { fn -> fn.substring(fn.lastIndexOf('/')+1) }
+//     ) 
+//     input:
+//         tuple val(meta), path(syri_out)
+//         val reference 
+//         path plotsr_conf 
+//         path extra_args
+//     output:
+//         tuple val(meta), path("*plotsr.pdf"), emit: figure
+
+//     def plotsr_conf = file("$projectDir/assets/plotsr_config.conf", checkIfExists: true)
+//     def plotsr_args = extra_args ?: ''
+//     script:
+//         """
+//         plotsr \\
+//             ${meta}_on_${reference}.syri.out $reference $meta \\
+//             -H 8 -W 5 \\
+//             --cfg $plotsr_conf \\
+//             $plotsr_args \\
+//             -o ${meta}_on_${reference}.plotsr.pdf 
+//         """
+// }
+
+// process PLOTSR_PAIRWISE {
+//     tag "BIGPLOT"
+//     label 'process_low'
+//     publishDir(
+//       path: { "${params.out}/${task.process}".replace(':','/').toLowerCase() },
+//       mode: 'copy',
+//       overwrite: true,
+//       saveAs: { fn -> fn.substring(fn.lastIndexOf('/')+1) }
+//     )
+
+//     input:
+//         path in_files
+//         val names
+//         val genomes
+//         path plotsr_conf
+//         val extra_args
+//         val tracks
+//         val palette
+
+//     output:
+//         path("*.pdf"), emit: figure
+
+//     script:
+//     def plotsr_tracks = tracks ? "--tracks ${tracks}" : ''
+//     def plotsr_palette = palette ?: '#8F7C00'
+//     def color_list = plotsr_palette.split(',').collect { it.replaceAll('#', '\\#') }
+//     def names_list = names.collect { it.replaceAll(/[\[\],]/, '') }
+//     def genomes_list = genomes.collect { it.replaceAll(/[\[\],]/, '') }
+//     def name_colours = names.indices.collect { index -> "lc:${color_list[index % color_list.size()]}" }
+//     def plotsr_in = [ names_list, genomes_list, name_colours ].transpose()
+//     """
+//     # Create plotsr input file
+//     printf '%s\\t%s\\t%s\\n' ${plotsr_in.flatten().join(" ")} > plotsr_infile.tsv
+
+//     # Run plotsr command
+//     plotsr --genomes plotsr_infile.tsv \\
+//         ${in_files.collect{ f -> "--sr $f" }.join(' ')} \\
+//         --cfg ${plotsr_conf} \\
+//         ${extra_args} \\
+//         ${plotsr_tracks} \\
+//         -o plot.pdf
+//     """
+// }
+
+// process PLOTSR_PAIRWISE_OLD {
+//     tag "BIGPLOT"
+//     label 'process_low'
+//     publishDir(
+//       path: { "${params.out}/${task.process}".replace(':','/').toLowerCase() }, 
+//       mode: 'copy',
+//       overwrite: true,
+//       saveAs: { fn -> fn.substring(fn.lastIndexOf('/')+1) }
+//     ) 
+//     input:
+//         path in_files
+//         val names 
+//         val genomes
+//         path plotsr_conf 
+//         val extra_args
+//         val tracks
+//         val palette
+
+//     output:
+//         path("*.pdf"), emit: figure
+
+//     script:
+
+//     def plotsr_tracks = tracks.equals('') || tracks == null ? '' : "--tracks ${tracks}"
+//     def plotsr_palette = palette.equals('') || palette == null ? '\\#8F7C00' : "${palette.toString().replace("#","\\#")}"
+
+//     """
+//     files_array=( ${in_files} )
+//     files="\${files_array[@]/#/--sr }"
+//     echo \$files > files.txt
+
+//     names_array=( ${names} )
+//     echo \$names_array > names.txt
+//     sed -i 's/\\[//g' names.txt 
+//     sed -i 's/\\]//g' names.txt 
+//     sed -i 's/,//g' names.txt 
+//     for x in `cat names.txt`
+//     do
+//         echo \$x
+//     done > names.col
+//     len_names=\$(cat names.col | wc -l)
+
+//     genomes_array=( ${genomes} )
+//     echo \$genomes_array > genomes.txt
+//     sed -i 's/\\[//g' genomes.txt 
+//     sed -i 's/\\]//g' genomes.txt 
+//     sed -i 's/,//g' genomes.txt 
+//     for x in `cat genomes.txt`
+//     do
+//         echo \$x
+//     done > genomes.col
+//     len_genomes=\$(cat genomes.col | wc -l)
+
+//     color_array=( ${plotsr_palette} )
+//     len_colors=\${#color_array[@]}
+
+//     # Here is a bunch of crap to make sure that colors are the same length as the samplesheet
+
+//     ## If they are equal its nice 
+//     if [ \$len_colors -eq \$len_names ]; then
+//         color_array2=( "\${color_array[@]}" )
+    
+//     ## If there are more colors than genomes, subset colors
+//     elif [ \$len_colors -gt \$len_names ]; then
+//         color_array2=( "\${color_array[@]:0:\$((\$len_names-1))}" )
+
+//     ## If there are less colors than genomes, repeat them
+//     elif [ \$len_colors -lt \$len_names ]; then
+//         len_fac=\$((\$len_names / \$len_colors)) # Take full divisions
+//         len_mod=\$((\$len_names % \$len_colors)) # Take mod
+//         for i in \$(seq 1 \$len_fac); do color_array2+=(\${ color_array[@]}); done
+//         color_array2+=(\${color_array[@]:0:\$((\$len_mod))}) 
+//     fi
+
+//     # prefix the color hexcode with lc:
+//     colors="\${color_array2[@]/#/lc:}"
+//     echo \$colors > colors.txt
+    
+//     # Turn txt into col
+//     for x in `cat colors.txt`
+//     do
+//         echo \$x
+//     done > colors.col
+
+//     paste genomes.col names.col colors.col >> plotsr_infile.tsv
+
+//     plotsr --genomes plotsr_infile.tsv \\
+//         \$files \\
+//         --cfg ${plotsr_conf} \\
+//         $extra_args \\
+//         ${plotsr_tracks} \\
+//         -o plot.pdf
+//     """
+// } 
+
+
+// modules/plotsr/main.nf
+
 process PLOTSR {
     tag "$meta"
     label 'process_low'
@@ -6,25 +178,26 @@ process PLOTSR {
       mode: 'copy',
       overwrite: true,
       saveAs: { fn -> fn.substring(fn.lastIndexOf('/')+1) }
-    ) 
+    )
+
     input:
         tuple val(meta), path(syri_out)
-        val reference 
-        path plotsr_conf 
-        path extra_args
+        val reference
+        path plotsr_conf
+        val extra_args        // <-- fix: this is a value (string), not a path
+
     output:
         tuple val(meta), path("*plotsr.pdf"), emit: figure
 
-    def plotsr_conf = file("$projectDir/assets/plotsr_config.conf", checkIfExists: true)
-    def plotsr_args = extra_args ?: ''
     script:
+        def plotsr_args = (extra_args ?: '').toString()
         """
         plotsr \\
             ${meta}_on_${reference}.syri.out $reference $meta \\
             -H 8 -W 5 \\
-            --cfg $plotsr_conf \\
-            $plotsr_args \\
-            -o ${meta}_on_${reference}.plotsr.pdf 
+            --cfg ${plotsr_conf} \\
+            ${plotsr_args} \\
+            -o ${meta}_on_${reference}.plotsr.pdf
         """
 }
 
@@ -51,18 +224,34 @@ process PLOTSR_PAIRWISE {
         path("*.pdf"), emit: figure
 
     script:
-    def plotsr_tracks = tracks ? "--tracks ${tracks}" : ''
-    def plotsr_palette = palette ?: '#8F7C00'
-    def color_list = plotsr_palette.split(',').collect { it.replaceAll('#', '\\#') }
-    def names_list = names.collect { it.replaceAll(/[\[\],]/, '') }
-    def genomes_list = genomes.collect { it.replaceAll(/[\[\],]/, '') }
-    def name_colours = names.indices.collect { index -> "lc:${color_list[index % color_list.size()]}" }
-    def plotsr_in = [ names_list, genomes_list, name_colours ].transpose()
+    // Build tracks flag
+    def plotsr_tracks = (tracks == null || tracks.toString().trim().isEmpty()) ? '' : "--tracks ${tracks}"
+
+    // Build color list from palette (List<String> or string)
+    List<String> paletteItems
+    if (palette instanceof List) {
+        paletteItems = (palette as List).collect { it?.toString()?.trim() }.findAll { it }
+    } else if (palette != null) {
+        paletteItems = palette.toString().replace('[',' ').replace(']',' ')
+            .split(/\s+|,\s*/).collect { it.trim() }.findAll { it }
+    } else {
+        paletteItems = []
+    }
+    if (paletteItems.isEmpty()) paletteItems = ['#8F7C00']
+
+    // Prepare names/genomes text columns (strip bracket/comma artifacts defensively)
+    def names_list   = names.collect   { it.toString().replaceAll(/[\\[\\],]/,'').trim() }
+    def genomes_list = genomes.collect { it.toString().replaceAll(/[\\[\\],]/,'').trim() }
+
+    // Compose color column cycling as needed
+    def name_colours = names_list.indices.collect { idx -> "lc:${paletteItems[idx % paletteItems.size()]}" }
+    def plotsr_in    = [ genomes_list, names_list, name_colours ].transpose()
+
     """
     # Create plotsr input file
-    printf '%s\\t%s\\t%s\\n' ${plotsr_in.flatten().join(" ")} > plotsr_infile.tsv
+    printf '%s\\t%s\\t%s\\n' ${plotsr_in.flatten().collect{ it.replace('#','\\#') }.join(' ')} > plotsr_infile.tsv
 
-    # Run plotsr command
+    # Run plotsr
     plotsr --genomes plotsr_infile.tsv \\
         ${in_files.collect{ f -> "--sr $f" }.join(' ')} \\
         --cfg ${plotsr_conf} \\
@@ -80,12 +269,13 @@ process PLOTSR_PAIRWISE_OLD {
       mode: 'copy',
       overwrite: true,
       saveAs: { fn -> fn.substring(fn.lastIndexOf('/')+1) }
-    ) 
+    )
+
     input:
         path in_files
-        val names 
+        val names
         val genomes
-        path plotsr_conf 
+        path plotsr_conf
         val extra_args
         val tracks
         val palette
@@ -94,9 +284,22 @@ process PLOTSR_PAIRWISE_OLD {
         path("*.pdf"), emit: figure
 
     script:
+    // tracks flag
+    def plotsr_tracks = (tracks == null || tracks.toString().trim().isEmpty()) ? '' : "--tracks ${tracks}"
 
-    def plotsr_tracks = tracks.equals('') || tracks == null ? '' : "--tracks ${tracks}"
-    def plotsr_palette = palette.equals('') || palette == null ? '\\#8F7C00' : "${palette.toString().replace("#","\\#")}"
+    // Robust palette normalization -> bash-safe array literal
+    List<String> paletteItems
+    if (palette instanceof List) {
+        paletteItems = (palette as List).collect { it?.toString()?.trim() }.findAll { it }
+    } else if (palette != null) {
+        paletteItems = palette.toString().replace('[',' ').replace(']',' ')
+            .split(/\s+|,\s*/).collect { it.trim() }.findAll { it }
+    } else {
+        paletteItems = []
+    }
+    if (paletteItems.isEmpty()) paletteItems = ['#8F7C00']
+    // Each item quoted so '#' never starts a bash comment
+    def palette_bash = paletteItems.collect { "'${it}'" }.join(' ')
 
     """
     files_array=( ${in_files} )
@@ -105,64 +308,48 @@ process PLOTSR_PAIRWISE_OLD {
 
     names_array=( ${names} )
     echo \$names_array > names.txt
-    sed -i 's/\\[//g' names.txt 
-    sed -i 's/\\]//g' names.txt 
-    sed -i 's/,//g' names.txt 
-    for x in `cat names.txt`
-    do
-        echo \$x
-    done > names.col
-    len_names=\$(cat names.col | wc -l)
+    sed -i 's/\\[//g; s/\\]//g; s/,//g' names.txt
+    awk 'NF' names.txt > names.col
+    len_names=\$(wc -l < names.col)
 
     genomes_array=( ${genomes} )
     echo \$genomes_array > genomes.txt
-    sed -i 's/\\[//g' genomes.txt 
-    sed -i 's/\\]//g' genomes.txt 
-    sed -i 's/,//g' genomes.txt 
-    for x in `cat genomes.txt`
-    do
-        echo \$x
-    done > genomes.col
-    len_genomes=\$(cat genomes.col | wc -l)
+    sed -i 's/\\[//g; s/\\]//g; s/,//g' genomes.txt
+    awk 'NF' genomes.txt > genomes.col
+    len_genomes=\$(wc -l < genomes.col)
 
-    color_array=( ${plotsr_palette} )
+    # ---- COLORS (robust) ----
+    # Nextflow-prepared, quoted items
+    color_array=( ${palette_bash} )
     len_colors=\${#color_array[@]}
 
-    # Here is a bunch of crap to make sure that colors are the same length as the samplesheet
-
-    ## If they are equal its nice 
-    if [ \$len_colors -eq \$len_names ]; then
-        color_array2=( "\${color_array[@]}" )
-    
-    ## If there are more colors than genomes, subset colors
-    elif [ \$len_colors -gt \$len_names ]; then
-        color_array2=( "\${color_array[@]:0:\$((\$len_names-1))}" )
-
-    ## If there are less colors than genomes, repeat them
-    elif [ \$len_colors -lt \$len_names ]; then
-        len_fac=\$((\$len_names / \$len_colors)) # Take full divisions
-        len_mod=\$((\$len_names % \$len_colors)) # Take mod
-        for i in \$(seq 1 \$len_fac); do color_array2+=(\${ color_array[@]}); done
-        color_array2+=(\${color_array[@]:0:\$((\$len_mod))}) 
+    if [ "\$len_colors" -eq 0 ]; then
+      color_array=( '#8F7C00' )
+      len_colors=1
     fi
 
-    # prefix the color hexcode with lc:
-    colors="\${color_array2[@]/#/lc:}"
-    echo \$colors > colors.txt
-    
-    # Turn txt into col
-    for x in `cat colors.txt`
-    do
-        echo \$x
+    color_array2=()
+    if [ "\$len_colors" -ge "\$len_names" ]; then
+      for ((i=0; i<\${len_names}; i++)); do color_array2+=( "\${color_array[i]}" ); done
+    else
+      while [ "\${#color_array2[@]}" -lt "\$len_names" ]; do
+        for c in "\${color_array[@]}"; do color_array2+=( "\$c" ); done
+      done
+      color_array2=( "\${color_array2[@]:0:\$len_names}" )
+    fi
+
+    # prefix with lc: and write one per line
+    for c in "\${color_array2[@]}"; do
+      printf 'lc:%s\\n' "\$c"
     done > colors.col
 
-    paste genomes.col names.col colors.col >> plotsr_infile.tsv
+    paste genomes.col names.col colors.col > plotsr_infile.tsv
 
     plotsr --genomes plotsr_infile.tsv \\
         \$files \\
         --cfg ${plotsr_conf} \\
-        $extra_args \\
+        ${extra_args} \\
         ${plotsr_tracks} \\
         -o plot.pdf
     """
-} 
+}
