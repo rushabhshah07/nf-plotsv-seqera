@@ -111,7 +111,7 @@ process SEQTK_SUBSET {
     tuple val(name), path(fasta)
 
   output:
-    tuple val(name), path("${name}_subset_${patt_hash}.fa")
+    tuple val(name), path("${name}_subset_*.fa")
 
   // capture the pattern; default to '.*'
   script:
