@@ -115,9 +115,10 @@ process SEQTK_SUBSET {
 
   // capture the pattern; default to '.*'
   script:
-  def pattern = (params.subset_pattern?.toString()?.trim() ?: '.*')
-  // include the pattern in the filename to invalidate cache when it changes
-  def patt_hash = pattern.bytes.encodeHex().toString().substring(0,8)
+  def pattern  = (params.subset_pattern?.toString()?.trim() ?: '.*')
+  def patt_hex = pattern.bytes.encodeHex().toString()
+  def patt_hash = (patt_hex.size() >= 8 ? patt_hex.substring(0,8) : patt_hex.padRight(8,'0' as char))
+
   """
   set -euo pipefail
 
