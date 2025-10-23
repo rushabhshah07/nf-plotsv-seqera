@@ -98,43 +98,45 @@ process SEQTK_ORIENT {
     """
 }
 process SEQTK_SUBSET {
-    fair true
-    tag "$meta"
-    label 'process_low'
-    publishDir(
-      path: { "${params.out}/${task.process}".replace(':','/').toLowerCase() },
-      mode: 'copy',
-      overwrite: true,
-      saveAs: { fn -> fn.substring(fn.lastIndexOf('/')+1) }
-    )
+  tag "$name"
+  label 'process_low'
 
-    input:
-    tuple val(meta), path(genome)
+  publishDir(
+    path: { "${params.out}/${task.process}".replace(':','/').toLowerCase() },
+    mode: 'copy', overwrite: true,
+    saveAs: { fn -> fn.substring(fn.lastIndexOf('/')+1) }
+  )
 
-    output:
-    tuple val(meta), path("*_subset.fa"), emit: subset
+  input:
+    tuple val(name), path(fasta)
 
-    script:
-    """
-    set -euo pipefail
+  output:
+    tuple val(name), path("${name}_subset_${patt_hash}.fa")
 
-    # Decompress or link the input FASTA
-    if [[ "${genome}" == *.gz ]]; then
-        gzip -dc "${genome}" > ${meta}_genome.fa
-    else
-        ln -sf "${genome}" ${meta}_genome.fa
-    fi
+  // capture the pattern; default to '.*'
+  script:
+  def pattern = (params.subset_pattern?.toString()?.trim() ?: '.*')
+  // include the pattern in the filename to invalidate cache when it changes
+  def patt_hash = pattern.bytes.encodeHex().toString().substring(0,8)
+  """
+  set -euo pipefail
 
-    # Build list of sequence names from HEADER lines only (strip leading '>')
-    awk -v pat="${params.subset_pattern}" '/^>/{h=substr(\$0,2); if (h ~ pat) print h}' ${meta}_genome.fa > names.lst
+  pattern=${groovyShellQuote(pattern)}
+  patt_hash=${groovyShellQuote(patt_hash)}
 
-    # Fallback: if nothing matched, use ALL headers to avoid empty list -> seqtk exit 1
-    if [[ ! -s names.lst ]]; then
-      echo "[WARN] No FASTA headers matched pattern: '${params.subset_pattern}'. Using ALL headers." >&2
-      awk '/^>/{print substr(\$0,2)}' ${meta}_genome.fa > names.lst
-    fi
+  # Extract IDs matching the regex
+  grep '^>' "${fasta}" | sed 's/^>//; s/ .*//' | grep -E "\$pattern" > ids.txt
 
-    # Subset
-    seqtk subseq ${meta}_genome.fa names.lst > ${meta}_subset.fa
-    """
+  # Safety: if ids.txt is empty, fail early with a clear message
+  if [ ! -s ids.txt ]; then
+    echo "ERROR: No headers matched subset_pattern: \$pattern" >&2
+    exit 1
+  fi
+
+  # Subset
+  seqtk subseq "${fasta}" ids.txt > "${name}_subset_\${patt_hash}.fa"
+  """
 }
+
+// Helper to safely quote strings into bash
+def groovyShellQuote(s){ return "'" + s.replace("'", "'\"'\"'") + "'" }
